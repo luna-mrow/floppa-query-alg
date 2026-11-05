@@ -1,0 +1,26 @@
+#ifndef ITEM_H
+#define ITEM_H
+
+typedef struct campo_ CAMPO;
+typedef struct template_ TEMPLATE;
+typedef struct item_ ITEM;
+
+//necessário para a validação de dados na comparação
+CAMPO* campo_string_criar(char*);
+CAMPO* campo_int_criar(int*);
+CAMPO* campo_float_criar(float*);
+CAMPO* campo_data_criar(DATA*);
+void campo_apagar(CAMPO**);
+
+//o template guarda a codifica
+TEMPLATE* template_criar(FILE**, int dataset);
+
+ITEM* item_criar();
+void item_apagar(ITEM**);
+
+int item_get_id(ITEM*);
+
+//int para saídas de erro, comp é operação (eg. "<=")
+int item_comparar_campo(ITEM*, CAMPO*, char* nome_campo, char* comp);
+
+#endif // !ITEM_H
