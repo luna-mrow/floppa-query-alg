@@ -1,26 +1,28 @@
-CC      := c99
+CC := c99
 C_FLAGS := -Wall -Wextra -pedantic
-target  := trabalho
 
-# falta os .o dos modulos novos (lista_seq, lista_ord, lista_cruz...)
-objects := main.o query.o item.o lista.o arquivo.o
-OBJ     := $(addprefix obj/,$(objects))
+objects := main.o item.o lista.o lista_seq.o lista_cruz.o
+target := trabalho
 
-all: $(target)
-
-$(target): $(OBJ)
-	$(CC) $(C_FLAGS) -o $@ $^ -lm
-
-obj/%.o: src/%.c | obj
-	$(CC) $(C_FLAGS) -c $< -o $@
-
-obj:
-	mkdir -p obj
+vpath %.h headers
+vpath %.c src
+vpath %.o obj
 
 run: $(target)
 	./$(target)
 
-clean:
-	rm -rf obj $(target)
+all: $(target)
 
-.PHONY: all run clean
+$(target): $(objects)
+	$(CC) -o $(target) $(objects) $(C_FLAGS)
+
+$(objects): %.o: %.c obj
+	$(CC) -c $< -o obj/$@
+
+obj:
+	mkdir obj
+
+clean:
+	rm -f $(target) obj/*
+
+.PHONY: run all clean
