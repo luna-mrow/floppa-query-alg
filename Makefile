@@ -14,7 +14,7 @@ run: $(target)
 all: $(target)
 
 $(target): $(objects)
-	$(CC) -o $(target)  $(C_FLAGS)
+	$(CC) -o $(target) $(objects) $(C_FLAGS)
 
 $(objects): %.o: %.c obj
 	$(CC) -c $< -o obj/$@

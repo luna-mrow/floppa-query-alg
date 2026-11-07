@@ -21,7 +21,7 @@ LISTA* lista_get_sublista(LISTA*, int pos);
 
 //0 e para profundidade maxima (65535)
 //qualquer numero acima de 65535 seria overkill TwT
-void lista_print(LISTA*, unsigned short profundidade);
+void lista_imprimir(LISTA*, unsigned short profundidade);
 
 //todos os proximos metodos sao aliases, atuando como cada uma das estruturas especificadas
 
