@@ -1,8 +1,6 @@
 #include <stdlib.h>
 
 #include "../headers/lista_cruz.h"
-#include "../headers/lista.h"
-#include "../headers/macros.h"
 
 typedef struct celula_ CELULA;
 
@@ -11,7 +9,7 @@ struct celula_ {
   int lin;
   int col;
   LISTA* sublista;
-  CELULA* esquerda;
+  CELULA* direita;
   CELULA* abaixo;
 };
 
@@ -29,7 +27,7 @@ LISTA_CRUZ* lista_cruz_criar() {
   lista->cabeca->lin = -1;
   lista->cabeca->col = -1;
   lista->cabeca->sublista = NULL;
-  lista->cabeca->esquerda = NULL;
+  lista->cabeca->direita = NULL;
   lista->cabeca->abaixo = NULL;
   return lista;
 }
@@ -37,7 +35,7 @@ LISTA_CRUZ* lista_cruz_criar() {
 void lista_cruz_apagar(LISTA_CRUZ **lista) {
   if (lista == NULL || *lista == NULL) return;
 
-  CELULA *del = NULL, *prox = (*lista->cabeca), *aux = NULL;
+  CELULA *del = NULL, *prox = ((*lista)->cabeca), *aux = NULL;
 
   while (prox != NULL) {
       aux = prox;
@@ -45,7 +43,7 @@ void lista_cruz_apagar(LISTA_CRUZ **lista) {
 
     while (aux != NULL) {
       del = aux;
-      aux = aux->esquerda;
+      aux = aux->direita;
 
       if (del->sublista != NULL) lista_apagar(&del->sublista);
       free(del);
@@ -56,113 +54,151 @@ void lista_cruz_apagar(LISTA_CRUZ **lista) {
   *lista = NULL;
 }
 
-bool lista_cruz_inserir(LISTA_CRUZ *lista_cruz, ITEM *item, int lin, int col) {
-  if (lista_cruz == NULL || item == NULL || lin < 0 || col < 0) return NULL;
+//para encontrar se uma linha ou coluna existe, coloque -1 no respectivo
+static CELULA* celula_encontrar(LISTA_CRUZ* lista, int lin, int col) {
+  CELULA *celula = lista->cabeca;
 
-  if (item_get(item) == 0) {
-    ITEM *aux = lista_cruz_remove(lista_cruz, lin, col);
-    item_delete(&aux);
-    return true;
+  while (celula->lin != lin) {
+    if (celula->lin > lin || celula->abaixo == NULL) return NULL;
+    celula = celula->abaixo;
   }
-
-  CELULA *new = malloc(sizeof(CELULA));
-  if (new == NULL) return false;
-
-  new->lin = lin;
-  new->col = col;
-  new->item = item_create(item_get(item));
-  new->esquerda = NULL;
-  new->abaixo = NULL;
-
-  CELULA *prev = NULL, *next = lista_cruz->lins[lin];
-  while (next != NULL) {
-    if (next->col < col) {
-      prev = next;
-      next = next->esquerda;
-    } else if (next->col == col && next->lin == lin) {
-      item_delete(&next->item);
-      next->item = item;
-      return true;
-    } else {
-      if (prev == NULL) lista_cruz->lins[lin] = new;
-      else prev->esquerda = new;
-
-      new->esquerda = next;
-    }
+  while (celula->col != col) {
+    if (celula->col > col || celula->abaixo == NULL) return NULL;
+    celula = celula->direita;
   }
+  
+  return celula;
+}
 
-  if (next == NULL) {
-    if (prev == NULL) lista_cruz->lins[lin] = new;
-    else prev->esquerda = new;
+static bool celula_inserir(LISTA_CRUZ *lista, CELULA *celula) {
+  CELULA *ante;
+
+  if (celula->lin >= 0) {
+    ante = celula_encontrar(lista, -1, celula->col);
+    if (ante == NULL) return false;
+
+    while (ante->abaixo != NULL && ante->abaixo->lin < celula->lin) ante = ante->abaixo;
+
+    celula->abaixo = ante->abaixo;
+    ante->abaixo = celula;
   }
+  if (celula->col >= 0) {
+    ante = celula_encontrar(lista, celula->lin, -1);
+    if (ante == NULL) return false;
 
-  prev = NULL, next = lista_cruz->cols[col];
-  while (next != NULL) {
-    if (next->lin < lin) {
-      prev = next;
-      next = next->abaixo;
-    } else if (next->lin == lin && next->col == col) {
-      item_delete(&next->item);
-      next->item = item;
-      return true;
-    } else {
-      if (prev == NULL) lista_cruz->cols[col] = new;
-      else prev->abaixo = new;
+    while (ante->direita != NULL && ante->direita->col < celula->col) ante = ante->direita;
 
-      new->abaixo = next;
-    }
-  }
-
-  if (next == NULL) {
-    if (prev == NULL) lista_cruz->cols[col] = new;
-    else prev->abaixo = new;
+    celula->direita = ante->direita;
+    ante->direita = celula;
   }
 
   return true;
 }
 
-ITEM* lista_cruz_remove(LISTA_CRUZ* lista_cruz, int lin, int col) {
+bool lista_cruz_inserir(LISTA_CRUZ* lista, ITEM* item,  const char *lin_campo, const char *col_campo) {
+  if (lista == NULL || item == NULL || lin_campo == NULL || col_campo == NULL) return NULL;
 
-  CELULA *prev = NULL, *aux = lista_cruz->lins[lin];
+  //double mas terá typecast para int quando necessario
+  double lin, col;
+  if (item_get_num(item, lin_campo, &lin) == 0) return false;
+  if (item_get_num(item, col_campo, &col) == 0) return false;
+  if (lin < 0 || col < 0) return false;
 
-  if (aux != NULL) {
-    while (aux->esquerda != NULL && aux->esquerda->col <= col) {
-      prev = aux;
-      aux = aux->esquerda;
+  CELULA *pos = celula_encontrar(lista, (int) lin, (int) col);
+  if (pos == NULL) {
+    CELULA *nova;
+    if (celula_encontrar(lista, (int) lin, -1) == NULL) {
+      nova = (CELULA*) malloc(sizeof(CELULA));
+      if (nova == NULL) return false;
+
+      nova->lin = (int) lin;
+      nova->col = -1;
+      nova->sublista = NULL;
+
+      if (!celula_inserir(lista, nova)) return false;
+    }
+    if (celula_encontrar(lista, -1, (int) col) == NULL) {
+      nova = (CELULA*) malloc(sizeof(CELULA));
+      if (nova == NULL) return false;
+
+      nova->lin = -1;
+      nova->col = (int) col;
+      nova->sublista = NULL;
+
+      if (!celula_inserir(lista, nova)) return false;
     }
 
-    if (aux->col == col) {
-      if (prev == NULL) lista_cruz->lins[lin] = aux->esquerda;
-      else prev->esquerda = aux->esquerda;
+    nova = (CELULA*) malloc(sizeof(CELULA));
+    if (nova == NULL) return false;
 
-      prev = NULL, aux = lista_cruz->cols[col];
-      while (aux->abaixo != NULL && aux->abaixo->lin <= lin) {
-        prev = aux;
-        aux = aux->abaixo;
-      }
+    nova->lin = (int) lin;
+    nova->col = (int) col;
+    nova->sublista = lista_criar();
 
-      if (prev == NULL) lista_cruz->cols[col] = aux->abaixo;
-      else prev->abaixo = aux->abaixo;
-      
-      ITEM *res = aux->item;
-      free(aux);
-      return res;
-    }
+    if (!celula_inserir(lista, nova)) return false;
+    pos = nova;
   }
 
-  return item_create(0);
+  return lista_inserir_atomo(pos->sublista, item, -1);
 }
 
-ITEM* lista_cruz_get(LISTA_CRUZ *lista_cruz, int lin, int col) {
-  if (lista_cruz == NULL || lin >= lista_cruz->lin_n || col >= lista_cruz->col_n) return NULL;
+static bool celula_remover(LISTA_CRUZ* lista, int lin, int col) {
+  CELULA *ante, *del;
 
-  CELULA *aux = lista_cruz->lins[lin];
+  if (col != -1) {
+    ante = celula_encontrar(lista, -1, col);
+    while (ante->abaixo->lin != lin) {
+      if (ante->abaixo == NULL || ante->abaixo->lin > lin) return false;
+      ante = ante->abaixo;
+    }
+    del = ante->abaixo;
+    ante->abaixo = del->abaixo;
 
-  if (aux != NULL) {
-    while (aux->esquerda != NULL && aux->esquerda->col <= col) aux = aux->esquerda;
-
-    if (aux->col == col) return item_create(item_get(aux->item));
+    lista_apagar(&del->sublista);
+    free(del);
+    if (lin == -1) return true;
   }
 
-  return item_create(0);
+  if (lin != -1) {
+    ante = celula_encontrar(lista, lin, -1);
+    while (ante->direita->col != col) {
+      if (ante->direita == NULL || ante->direita->col > col) return false;
+      ante = ante->direita;
+    }
+    del = ante->direita;
+    ante->direita = del->direita;
+
+    lista_apagar(&del->sublista);
+    free(del);
+    return true; //aqui pode retornar direto, pois a celula foi removida das duas direcoes
+  }
+
+  //falso porque a cabeca nao pode ser removida
+  return false;
+}
+
+bool lista_cruz_remover(LISTA_CRUZ* lista, int lin, int col) {
+  if (lin < 0 || col < 0 || celula_encontrar(lista, lin, col) == NULL) return false;
+
+  celula_remover(lista, lin, col);
+
+  //libera as linhas e colunas se elas não apontam para nada;
+  CELULA* verif = celula_encontrar(lista, lin, -1);
+  if (verif->direita == NULL) celula_remover(lista, lin, -1);
+  verif = celula_encontrar(lista, -1, col);
+  if (verif->abaixo == NULL) celula_remover(lista, -1, col);
+
+  return true;
+}
+
+LISTA* lista_cruz_get(LISTA_CRUZ *lista, int lin, int col) {
+  if (lista == NULL || lin < 0 || col < 0) return NULL;
+
+  CELULA* celula = celula_encontrar(lista, lin, col);
+
+  return celula != NULL ? celula->sublista : NULL;
+}
+
+bool lista_cruz_vazia(LISTA_CRUZ *lista) {
+  return lista != NULL ? lista->cabeca->abaixo == NULL && lista->cabeca->direita == NULL : false;
 }
