@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "../headers/lista_cruza_cruz.h"
+#include "../headers/lista_cruz.h"
 #include "../headers/lista.h"
 #include "../headers/macros.h"
 
@@ -56,8 +56,8 @@ void lista_cruz_apagar(LISTA_CRUZ **lista) {
   *lista = NULL;
 }
 
-bool lista_cruz_insert(LISTA_CRUZ *lista_cruz, ITEM *item, int lin, int col) {
-  if (lista_cruz == NULL || item == NULL || lin >= lista_cruz->lin_n || col >= lista_cruz->col_n) return NULL;
+bool lista_cruz_inserir(LISTA_CRUZ *lista_cruz, ITEM *item, int lin, int col) {
+  if (lista_cruz == NULL || item == NULL || lin < 0 || col < 0) return NULL;
 
   if (item_get(item) == 0) {
     ITEM *aux = lista_cruz_remove(lista_cruz, lin, col);

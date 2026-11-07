@@ -35,11 +35,11 @@ typedef struct {
 
 int query_carregar(const char *caminho, Query *q, char *err, size_t err_n);
 
-int    query_filtros_ok(const Query *q, ITEM *it);
+int query_filtros_ok(const Query *q, ITEM *it);
 
 double query_similaridade(const Query *q, ITEM *it);
 
-int    query_aceita(const Query *q, double sim);
+int query_aceita(const Query *q, double sim);
 
 int query_cmp_resultado(ITEM *a, ITEM *b, void *ctx);
 int query_cmp_base(ITEM *a, ITEM *b, void *ctx);

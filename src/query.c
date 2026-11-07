@@ -93,8 +93,7 @@ static int parse_sim(Query *q, char *tok[], int nt, int ln, char *err, size_t en
     return 0;
 }
 
-static int parse_lista(char dst[][Q_NOME], int *n, char *tok[], int nt, int ln,
-                       char *err, size_t en)
+static int parse_lista(char dst[][Q_NOME], int *n, char *tok[], int nt, int ln, char *err, size_t en)
 {
     int i;
     if (nt < 2 || nt - 1 > Q_MAX) return falha(err, en, ln, "lista de campos invalida");

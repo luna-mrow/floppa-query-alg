@@ -48,25 +48,25 @@ typedef struct {
     INSERIR_ITEM inserir;
 } Estrutura;
 
-static LISTA *criar_simples(const Query *q, Papel papel)
+static LISTA *criar_geral(const Query *q, Papel papel)
 {
     (void)q; (void)papel;
     return lista_criar();
 }
 
 static const Estrutura ESTRUTURAS[] = {
-    { "pilha",        criar_simples, arquivo_inserir_pilha },
-    { "fila",         criar_simples, arquivo_inserir_fila  },
+    { "pilha",        .geral = criar_geral, arquivo_inserir_pilha },
+    { "fila",         .geral = criar_geral, arquivo_inserir_fila  },
     // lista_enc precisa de criar/inserir proprios se for diferenciar de lista_cabeca
-    { "lista_enc",    criar_simples, arquivo_inserir_lista },
-    { "lista_cabeca", criar_simples, arquivo_inserir_lista },
+    { "lista_enc",    .geral = criar_geral, arquivo_inserir_lista },
+    { "lista_cabeca", .geral = criar_geral, arquivo_inserir_lista },
 
     // preencher criar e inserir com o que ta faltando
     // lista_ord: comparador = query_cmp_base (base) ou query_cmp_resultado (resultado), ctx = q
     // lista_gen: niveis = q->grupo[0..n_grupo-1] | lista_cruz: organizacoes = q->cruz[0..n_cruz-1]
     { "lista_seq",    NULL, NULL },
     { "lista_ord",    NULL, NULL },
-    { "lista_gen",    NULL, NULL },
+    { "lista_gen",    criar_geral, NULL },
     { "lista_cruz",   NULL, NULL },
 };
 
@@ -123,9 +123,13 @@ static int parse_args(int argc, char **argv, Args *a)
         else if (!strcmp(chave, "query"))  a->query  = valor;
         else if (!strcmp(chave, "output")) a->output = valor;
         else if (!strcmp(chave, "top-k") || !strcmp(chave, "top_k")) {
-            if (!parse_long(valor, &a->top_k)) { fprintf(stderr, "--top-k invalido: %s\n", valor); return -1; }
+            if (!parse_long(valor, &a->top_k)) {
+                fprintf(stderr, "--top-k invalido: %s\n", valor);
+                return -1;
+            }
         } else if (!strcmp(chave, "limit")) {
-            if (!parse_long(valor, &a->limit)) { fprintf(stderr, "--limit invalido: %s\n", valor); return -1; }
+            if (!parse_long(valor, &a->limit)) { fprintf(stderr, "--limit invalido: %s\n", valor); return -1;
+            }
         } else { fprintf(stderr, "opcao desconhecida: --%s\n", chave); return -1; }
     }
     if (!a->reader || !a->input || !a->base || !a->result || !a->query || !a->output) {
@@ -170,7 +174,10 @@ static int visita_busca(ITEM *it, void *p)
 
     item_set_sim(it, sim);
     t0 = agora_ms();
-    if (!c->inserir(c->res, it)) { c->erro = 1; return 1; }
+    if (!c->inserir(c->res, it)) {
+        c->erro = 1;
+        return 1;
+    }
     c->insert_ms += agora_ms() - t0;
     c->aceitos++;
     return 0;
@@ -189,12 +196,24 @@ int main(int argc, char **argv)
     BuscaCtx bc;
     int status = 1;
 
-    if (argc < 2 || !strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) { uso(argv[0]); return 1; }
-    if (parse_args(argc, argv, &a) != 0) { uso(argv[0]); printf("STATUS=ERROR\n"); return 1; }
+    if (argc < 2 || !strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) {
+        uso(argv[0]);
+        return 1;
+    }
+    if (parse_args(argc, argv, &a) != 0) {
+        uso(argv[0]);
+        printf("STATUS=ERROR\n"); return 1;
+    }
 
     ds = achar_dataset(a.reader);
-    if (!ds) { fprintf(stderr, "reader desconhecido: '%s'\n", a.reader); goto fim; }
-    if (query_carregar(a.query, &q, err, sizeof err) != 0) { fprintf(stderr, "%s\n", err); goto fim; }
+    if (!ds) {
+        fprintf(stderr, "reader desconhecido: '%s'\n", a.reader);
+        goto fim;
+    }
+    if (query_carregar(a.query, &q, err, sizeof err) != 0) {
+        fprintf(stderr, "%s\n", err);
+        goto fim;
+    }
 
     eb = validar_estrutura("--base", a.base, &q);
     er = validar_estrutura("--result", a.result, &q);
@@ -202,7 +221,10 @@ int main(int argc, char **argv)
 
     base = eb->criar(&q, PAPEL_BASE);
     res  = er->criar(&q, PAPEL_RESULTADO);
-    if (!base || !res) { fprintf(stderr, "falha ao criar estruturas\n"); goto fim; }
+    if (!base || !res) {
+        fprintf(stderr, "falha ao criar estruturas\n");
+        goto fim;
+    }
 
     t0 = agora_ms();
     if (!arquivo_carregar(a.input, base, (size_t)a.limit, &input_records, ds->ler, eb->inserir)) {
@@ -216,7 +238,10 @@ int main(int argc, char **argv)
     t0 = agora_ms();
     lista_percorrer(base, visita_busca, &bc);
     search_ms = (agora_ms() - t0) - bc.insert_ms;
-    if (bc.erro) { fprintf(stderr, "falha ao inserir no resultado\n"); goto fim; }
+    if (bc.erro) {
+        fprintf(stderr, "falha ao inserir no resultado\n");
+        goto fim;
+    }
 
     t0 = agora_ms();
     if (!arquivo_escrever(a.input, a.output, res, (size_t)a.top_k, &output_records, ds->escrever)) {

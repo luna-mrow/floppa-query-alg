@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #include "../headers/lista_seq.h"
-#include "../headers/macros.h"
 
 struct lista_seq_ {
   ITEM** lista;
@@ -51,12 +50,27 @@ bool lista_seq_inserir(LISTA_SEQ* lista, ITEM* item, int pos) {
   return true;
 }
 
-/*
-bool lista_seq_inserir_ordenado(LISTA_SEQ* lista, ITEM *item, TEMPLATE* template, char* nome_campo, char* ordenamento) {
-  return false;
-  //fazer
+bool lista_seq_inserir_ordenado(LISTA_SEQ* lista, ITEM* item, const char *campo, int ordem) {
+  if (lista == NULL || item == NULL || lista->tamanho >= lista->tam_max) return false;
+
+  double val, mid_val;
+  if (item_get_num(item, campo, &val) == 0) return false;
+
+  int bot = 0, top = lista->tamanho - 1, mid = -1; //mid = -1 para lista vazia (insere no final)
+  while (bot <= top) {
+    mid = bot + (top - bot)/2;
+    if (item_get_num(lista->lista[mid], campo, &mid_val) == 0) return false;
+
+    if (val == mid_val) break;
+    if (ordem ? val > mid_val : val < mid_val) top = mid - 1;
+    else bot = mid + 1;
+  }
+  
+  //este mid++ garante casos de borda (incluindo final da lista)
+  //mid tem viés para baixo por causa do floor de divisão de inteiros
+  if (ordem ? val < mid_val : val > mid_val) mid++; 
+  return lista_seq_inserir(lista, item, mid);
 }
-*/
 
 bool lista_seq_remover(LISTA_SEQ* lista, int pos) {
   if (lista == NULL || pos >= lista->tamanho || -pos >= lista->tamanho + 1) return false;
@@ -76,6 +90,18 @@ ITEM* lista_seq_get(LISTA_SEQ* lista, int pos) {
   if (pos < 0) pos += lista->tamanho;
   
   return lista->lista[pos];
+}
+
+int lista_seq_vazia(LISTA_SEQ *lista) {
+  return lista != NULL ? lista->tamanho == 0 : -1;
+}
+
+int lista_seq_cheia(LISTA_SEQ *lista) {
+  return lista != NULL ? lista->tamanho == lista->tam_max : -1;
+}
+
+int lista_seq_tamanho(LISTA_SEQ *lista) {
+  return lista != NULL ? lista->tamanho : -1;
 }
 
 void lista_seq_imprimir(LISTA_SEQ* lista) {

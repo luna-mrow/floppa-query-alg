@@ -19,6 +19,8 @@ int lista_get_tipo(LISTA*, int pos);
 ITEM* lista_get_atomo(LISTA*, int pos);
 LISTA* lista_get_sublista(LISTA*, int pos);
 
+bool lista_vazia(LISTA*);
+int lista_tamanho(LISTA*);
 //0 e para profundidade maxima (65535)
 //qualquer numero acima de 65535 seria overkill TwT
 void lista_imprimir(LISTA*, unsigned short profundidade);

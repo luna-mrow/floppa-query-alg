@@ -1,7 +1,7 @@
 CC := c99
 C_FLAGS := -Wall -Wextra -pedantic
 
-objects := main.o item.o lista.o lista_seq.o lista_cruz.o
+objects := main.o arquivo.o query.o item.o lista.o lista_seq.o lista_cruz.o
 target := trabalho
 
 vpath %.h headers

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "../headers/query.h"
 #include "../headers/lista.h"
 
 enum tipos_dado {
@@ -165,6 +166,16 @@ LISTA* lista_get_sublista(LISTA* lista, int pos) {
   NO* no = encontrar_pos(lista, pos);
 
   return no->tipo == TIPO_LISTA ? ((no != lista->cabeca && no != lista->cauda) ? no->dado.sublista : NULL) : NULL;
+}
+
+bool lista_vazia(LISTA* lista) {
+  return lista != NULL ? lista->cabeca->prox == lista->cauda : false;
+}
+
+int lista_tamanho(LISTA* lista) {
+  int cont = 0;
+  for (NO* aux = lista->cabeca->prox; aux != lista->cauda; aux = aux->prox) cont++;
+  return cont;
 }
 
 static void lista_imprimir_rec(LISTA* lista, int profundidade) {
