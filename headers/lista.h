@@ -12,6 +12,7 @@ void lista_apagar(LISTA**);
 //pos negativa para propagar da cauda
 bool lista_inserir_atomo(LISTA*, ITEM*, int pos);
 bool lista_inserir_sublista(LISTA*, LISTA*, int pos);
+bool lista_inserir_agrupado(LISTA*, ITEM*, const char *campos[], int n_campos);
 
 bool lista_remover(LISTA*, int pos);
 

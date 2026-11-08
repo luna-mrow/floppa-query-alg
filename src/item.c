@@ -192,11 +192,19 @@ static bool escrever_item(FILE *arquivo, ITEM *item) {
          fputs(item->crlf ? "\r\n" : "\n", arquivo) != EOF;
 }
 
-ITEM* item_ler_nasa(FILE *arquivo) { return ler_item(arquivo, &TEMPLATE_NASA); }
-bool item_escrever_nasa(FILE *arquivo, ITEM *item) { return escrever_item(arquivo, item); }
+ITEM* item_ler_nasa(FILE *arquivo) {
+    return ler_item(arquivo, &TEMPLATE_NASA);
+}
+bool item_escrever_nasa(FILE *arquivo, ITEM *item) {
+    return escrever_item(arquivo, item);
+}
 
-ITEM* item_ler_ancine(FILE *arquivo) { return ler_item(arquivo, &TEMPLATE_ANCINE); }
-bool item_escrever_ancine(FILE *arquivo, ITEM *item) { return escrever_item(arquivo, item); }
+ITEM* item_ler_ancine(FILE *arquivo) {
+    return ler_item(arquivo, &TEMPLATE_ANCINE);
+}
+bool item_escrever_ancine(FILE *arquivo, ITEM *item) {
+    return escrever_item(arquivo, item);
+}
 
 ITEM* item_copiar(ITEM *item) {
   if (item == NULL) return NULL;

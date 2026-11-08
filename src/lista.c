@@ -20,6 +20,7 @@ struct no_ {
   DADO dado;
   NO *ante;
   NO *prox;
+  int *chave_agrupamento;
 };
 
 struct lista_ {
@@ -37,11 +38,13 @@ LISTA* lista_criar() {
   cabeca->dado.sublista = NULL;
   cabeca->ante = NULL;
   cabeca->prox = cauda;
+  cabeca->chave_agrupamento = NULL;
 
   cauda->tipo = TIPO_LISTA;
   cauda->dado.sublista = NULL;
   cauda->ante = cabeca;
   cauda->prox = NULL;
+  cauda->chave_agrupamento = NULL;
 
   lista->cabeca = cabeca;
   lista->cauda = cauda;
@@ -88,7 +91,7 @@ static NO* encontrar_pos(LISTA *lista, int pos) {
   return prox;
 }
 
-static bool lista_inserir(LISTA *lista, int tipo, DADO dado, int pos) {
+static bool lista_inserir(LISTA *lista, int tipo, DADO dado, int pos, int* chave_agrupamento) {
   if (lista == NULL || (tipo == TIPO_ATOMO ? dado.atomo == NULL : dado.sublista == NULL)) return false;
 
   NO *novo = malloc(sizeof(NO));
@@ -96,6 +99,7 @@ static bool lista_inserir(LISTA *lista, int tipo, DADO dado, int pos) {
 
   novo->tipo = tipo;
   novo->dado = dado;
+  novo->chave_agrupamento = chave_agrupamento;
 
   //recalcular pos_neg e redundante mas necessario para a manipulacao de ponteiros
   bool pos_neg = pos < 0;
@@ -118,12 +122,32 @@ static bool lista_inserir(LISTA *lista, int tipo, DADO dado, int pos) {
 
 bool lista_inserir_atomo(LISTA* lista, ITEM* atomo, int pos) {
   DADO dado; dado.atomo = atomo;
-  return lista_inserir(lista, TIPO_ATOMO, dado, pos);
+  return lista_inserir(lista, TIPO_ATOMO, dado, pos, NULL);
 }
 
 bool lista_inserir_sublista(LISTA *lista, LISTA *sublista, int pos) {
   DADO dado; dado.sublista = sublista;
-  return lista_inserir(lista, TIPO_LISTA, dado, pos);
+  return lista_inserir(lista, TIPO_LISTA, dado, pos, NULL);
+}
+
+bool lista_inserir_agrupado(LISTA *lista, ITEM* item, const char* campos[], int n_campos) {
+  if (lista == NULL || item == NULL || campos == NULL || n_campos < 0) return false;
+  for (int i = 0; i < n_campos; i++) if (campos[i] == NULL) return false;
+
+  if (n_campos == 0) return lista_inserir_atomo(lista, item, -1);
+
+  double val;
+  if (item_get_num(item, campos[n_campos - 1], &val) == 0) return false;
+  int val_int = (int) val;
+
+  for (NO* aux = lista->cabeca->prox; aux != lista->cauda; aux = aux->prox) {
+    if (val_int == *aux->chave_agrupamento) return lista_inserir_agrupado(aux->dado.sublista, item, campos, n_campos - 1);
+  }
+
+  DADO dado;
+  dado.sublista = lista_criar();
+  lista_inserir(lista, TIPO_LISTA, dado, -1, &val_int);
+  return lista_inserir_agrupado(dado.sublista, item, campos, n_campos - 1);
 }
 
 bool lista_remover(LISTA* lista, int pos) {

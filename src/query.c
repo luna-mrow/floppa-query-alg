@@ -93,12 +93,15 @@ static int parse_sim(Query *q, char *tok[], int nt, int ln, char *err, size_t en
     return 0;
 }
 
-static int parse_lista(char dst[][Q_NOME], int *n, char *tok[], int nt, int ln, char *err, size_t en)
+static int parse_lista(char dst[][Q_NOME], int *n, char *tok[], int nt, int nt_max, int ln, char *err, size_t en)
 {
     int i;
-    if (nt < 2 || nt - 1 > Q_MAX) return falha(err, en, ln, "lista de campos invalida");
-    for (i = 1; i < nt; i++)
+    double aux;
+    if (nt < 2 || nt - 1 > nt_max) return falha(err, en, ln, "lista de campos invalida");
+    for (i = 1; i < nt; i++) {
         if (copiar_nome(dst[i - 1], tok[i]) != 0) return falha(err, en, ln, "campo invalido");
+        if (!numero(tok[i], &aux)) return falha(err, en, ln, "campos cruzados/agrupados devem ser numeros");
+    }
     *n = nt - 1;
     return 0;
 }
@@ -114,7 +117,10 @@ int query_carregar(const char *caminho, Query *q, char *err, size_t err_n)
     strcpy(q->ordem_campo, "similarity");
     q->ordem_desc = 1;
 
-    if (!f) { snprintf(err, err_n, "nao foi possivel abrir a consulta '%s'", caminho); return -1; }
+    if (!f) {
+        snprintf(err, err_n, "nao foi possivel abrir a consulta '%s'", caminho);
+        return -1;
+    }
 
     while (rc == 0 && getline(&linha, &cap, f) != -1) {
         char *tok[8], *l = trim(linha);
@@ -134,8 +140,8 @@ int query_carregar(const char *caminho, Query *q, char *err, size_t err_n)
             else if (nt == 3 && !strcasecmp(tok[2], "ASC"))  q->ordem_desc = 0;
             else if (nt == 3) rc = falha(err, err_n, ln, "direcao deve ser ASC ou DESC");
             else q->ordem_desc = 0;
-        } else if (!strcasecmp(tok[0], "GROUP")) rc = parse_lista(q->grupo, &q->n_grupo, tok, nt, ln, err, err_n);
-        else if (!strcasecmp(tok[0], "CROSS"))   rc = parse_lista(q->cruz, &q->n_cruz, tok, nt, ln, err, err_n);
+        } else if (!strcasecmp(tok[0], "GROUP")) rc = parse_lista(q->grupo, &q->n_grupo, tok, nt, Q_MAX, ln, err, err_n);
+        else if (!strcasecmp(tok[0], "CROSS"))   rc = parse_lista(q->cruz, &q->n_cruz, tok, nt, 2, ln, err, err_n);
         else rc = falha(err, err_n, ln, "comando desconhecido");
     }
     free(linha);

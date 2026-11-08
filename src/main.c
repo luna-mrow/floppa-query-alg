@@ -5,10 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
-#include "../headers/item.h"
-#include "../headers/lista.h"
 #include "../headers/arquivo.h"
-#include "../headers/query.h"
 
 static double agora_ms(void)
 {
@@ -27,47 +24,53 @@ static void uso(const char *prog)
         "  --top-k 0 e --limit 0 significam 'todos'.\n", prog);
 }
 
-typedef struct {
-    const char    *nome;
-    LEITOR_ITEM    ler;
-    ESCRITOR_ITEM  escrever;
-} Dataset;
-
 static const Dataset DATASETS[] = {
-    { "nasa",   item_ler_nasa,   item_escrever_nasa   },
+    { "nasa", item_ler_nasa, item_escrever_nasa },
     { "ancine", item_ler_ancine, item_escrever_ancine },
     { "cinema", item_ler_ancine, item_escrever_ancine },
 };
 
-typedef enum { PAPEL_BASE, PAPEL_RESULTADO } Papel;
+static bool estrutura_criar(Estrutura *e, const Args *a, const Query *q, Papel papel) {
+    switch (e->tipo) {
+        case GERAL:
+            e->estrutura.geral = e->criar.geral(a, q, papel);
+            break;
+        case SEQ:
+            e->estrutura.seq = e->criar.seq(a, q, papel);
+            break;
+        case CRUZ:
+            e->estrutura.cruz = e->criar.cruz(a, q, papel);
+            break;
+        default: return false;
+    }
+    return true;
+}
 
-typedef struct {
-    const char  *nome;
-
-    LISTA     *(*criar)(const Query *q, Papel papel);
-    INSERIR_ITEM inserir;
-} Estrutura;
-
-static LISTA *criar_geral(const Query *q, Papel papel)
+static LISTA *criar_geral(const Args *a, const Query *q, Papel papel)
 {
-    (void)q; (void)papel;
+    (void)a; (void)q; (void)papel;
     return lista_criar();
 }
 
+static LISTA_SEQ *criar_seq(const Args *a, const Query *q, Papel papel)
+{
+    (void)a; (void)q; (void)papel;
+    return lista_seq_criar(100);
+}
+
 static const Estrutura ESTRUTURAS[] = {
-    { "pilha",        .geral = criar_geral, arquivo_inserir_pilha },
-    { "fila",         .geral = criar_geral, arquivo_inserir_fila  },
-    // lista_enc precisa de criar/inserir proprios se for diferenciar de lista_cabeca
-    { "lista_enc",    .geral = criar_geral, arquivo_inserir_lista },
-    { "lista_cabeca", .geral = criar_geral, arquivo_inserir_lista },
+    { "pilha", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_pilha },
+    { "fila", GERAL, NULL,.criar.geral =  criar_geral, arquivo_inserir_fila },
+    { "lista_enc", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_lista },
+    { "lista_cabeca", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_lista },
+    { "lista_gen", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_agrupado },
 
     // preencher criar e inserir com o que ta faltando
     // lista_ord: comparador = query_cmp_base (base) ou query_cmp_resultado (resultado), ctx = q
     // lista_gen: niveis = q->grupo[0..n_grupo-1] | lista_cruz: organizacoes = q->cruz[0..n_cruz-1]
-    { "lista_seq",    NULL, NULL },
-    { "lista_ord",    NULL, NULL },
-    { "lista_gen",    criar_geral, NULL },
-    { "lista_cruz",   NULL, NULL },
+    { "lista_seq", SEQ, NULL, .criar.seq = criar_seq, arquivo_inserir_seq },
+    { "lista_ord", SEQ, NULL, .criar.seq = criar_seq, arquivo_inserir_ordenado },
+    { "lista_cruz", CRUZ, NULL, .criar.cruz = criar_cruz, arquivo_inserir_cruzado },
 };
 
 #define N_ELEM(v) (sizeof (v) / sizeof (v)[0])
@@ -87,11 +90,6 @@ static const Estrutura *achar_estrutura(const char *nome)
         if (!strcmp(ESTRUTURAS[i].nome, nome)) return &ESTRUTURAS[i];
     return NULL;
 }
-
-typedef struct {
-    const char *reader, *input, *base, *result, *query, *output;
-    long top_k, limit;
-} Args;
 
 static int parse_long(const char *s, long *out)
 {
@@ -142,25 +140,20 @@ static int parse_args(int argc, char **argv, Args *a)
 static const Estrutura *validar_estrutura(const char *opcao, const char *nome, const Query *q)
 {
     const Estrutura *e = achar_estrutura(nome);
-    if (!e) { fprintf(stderr, "%s: estrutura desconhecida '%s'\n", opcao, nome); return NULL; }
-    if (!e->criar) { fprintf(stderr, "%s: '%s' ainda nao foi implementada\n", opcao, nome); return NULL; }
-    if (!strcmp(nome, "lista_gen") && q->n_grupo < 1) {
-        fprintf(stderr, "%s=lista_gen exige o comando GROUP na consulta\n", opcao); return NULL;
+    if (!e) {
+        fprintf(stderr, "%s: estrutura desconhecida '%s'\n", opcao, nome);
+        return NULL;
     }
-    if (!strcmp(nome, "lista_cruz") && q->n_cruz < 2) {
-        fprintf(stderr, "%s=lista_cruz exige CROSS com pelo menos 2 campos\n", opcao); return NULL;
+    if (!strcmp(nome, "lista_gen") && q->n_grupo < 1) {
+        fprintf(stderr, "%s=lista_gen exige o comando GROUP na consulta\n", opcao);
+        return NULL;
+    }
+    if (!strcmp(nome, "lista_cruz") && q->n_cruz != 2) {
+        fprintf(stderr, "%s=lista_cruz exige CROSS com pelo menos 2 campos\n", opcao);
+        return NULL;
     }
     return e;
 }
-
-typedef struct {
-    const Query *q;
-    LISTA       *res;
-    INSERIR_ITEM inserir;
-    size_t       vistos, aceitos;
-    double       insert_ms;
-    int          erro;
-} BuscaCtx;
 
 static int visita_busca(ITEM *it, void *p)
 {

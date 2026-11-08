@@ -26,11 +26,11 @@ typedef struct {
 
 typedef struct {
     Filtro filtros[Q_MAX]; int n_filtros;
-    Sim    sims[Q_MAX];    int n_sims;
-    int    tem_accept;     double accept;
-    char   ordem_campo[Q_NOME]; int ordem_desc;
-    char   grupo[Q_MAX][Q_NOME]; int n_grupo;
-    char   cruz[Q_MAX][Q_NOME];  int n_cruz;
+    Sim sims[Q_MAX]; int n_sims;
+    int tem_accept; double accept;
+    char ordem_campo[Q_NOME]; int ordem_desc;
+    char grupo[Q_MAX][Q_NOME]; int n_grupo;
+    char cruz[Q_MAX][Q_NOME]; int n_cruz;
 } Query;
 
 int query_carregar(const char *caminho, Query *q, char *err, size_t err_n);
