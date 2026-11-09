@@ -96,11 +96,9 @@ static int parse_sim(Query *q, char *tok[], int nt, int ln, char *err, size_t en
 static int parse_lista(char dst[][Q_NOME], int *n, char *tok[], int nt, int nt_max, int ln, char *err, size_t en)
 {
     int i;
-    double aux;
     if (nt < 2 || nt - 1 > nt_max) return falha(err, en, ln, "lista de campos invalida");
     for (i = 1; i < nt; i++) {
         if (copiar_nome(dst[i - 1], tok[i]) != 0) return falha(err, en, ln, "campo invalido");
-        if (!numero(tok[i], &aux)) return falha(err, en, ln, "campos cruzados/agrupados devem ser numeros");
     }
     *n = nt - 1;
     return 0;

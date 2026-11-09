@@ -3,6 +3,7 @@
 
 #include "../headers/arquivo.h"
 #include "../headers/item.h"
+#include "../headers/query.h"
 
 
 // Copia o cabeçalho do arquivo original para o arquivo de saída.
@@ -33,11 +34,12 @@ static bool copiar_cabecalho(FILE *entrada, FILE *saida) {
 // Carrega os registros de um arquivo para a estrutura escolhida.
 bool arquivo_carregar(
     const char *caminho,
-    LISTA *base,
+    Estrutura *base,
     size_t limite,
     size_t *quantidade,
     LEITOR_ITEM leitor,
-    INSERIR_ITEM inserir
+    INSERIR_ITEM inserir,
+    Query *query
 ) {
 
     if (caminho == NULL || base == NULL ||
@@ -91,7 +93,7 @@ bool arquivo_carregar(
         }
 
         // Insere o ITEM na estrutura escolhida.
-        if (!inserir(base, item)) {
+        if (!inserir(base, item, query)) {
 
             // Se a inserção falhou, a estrutura não assumiu a responsabilidade pelo ITEM.
             item_apagar(&item);
@@ -113,11 +115,45 @@ bool arquivo_carregar(
 }
 
 
+// Estado compartilhado entre arquivo_escrever e o visitante que grava cada item.
+typedef struct {
+    FILE *saida;
+    ESCRITOR_ITEM escritor;
+    size_t limite;
+    size_t total;
+    bool erro;
+} SAIDA_CTX;
+
+
+// Visitante chamado pela estrutura a cada item, na ordem de acesso dela.
+// Grava o item e interrompe o percurso quando o top-k e atingido ou quando ocorre erro.
+static int escrever_visita(ITEM *item, void *ctx) {
+
+    SAIDA_CTX *saida = (SAIDA_CTX *) ctx;
+
+    // top_k = 0 significa sem limite.
+    if (saida->limite != 0 && saida->total >= saida->limite)
+        return 1;
+
+    //O escritor específico do dataset transforma o ITEM em uma linha do arquivo.
+    if (!saida->escritor(saida->saida, item)) {
+        saida->erro = true;
+        return 1;
+    }
+
+    saida->total++;
+
+    return saida->limite != 0 && saida->total >= saida->limite;
+}
+
+
 // Escreve os resultados de uma busca em um arquivo CSV.
+// O percurso é delegado à própria estrutura (estrutura_percorrer), então o mesmo código
+// serve para qualquer tipo de estrutura, inclusive as que têm sublistas.
 bool arquivo_escrever(
     const char *entrada,
     const char *saida,
-    LISTA *resultado,
+    Estrutura *resultado,
     size_t top_k,
     size_t *quantidade,
     ESCRITOR_ITEM escritor
@@ -150,37 +186,20 @@ bool arquivo_escrever(
     }
 
     bool sucesso = true;
-    size_t total = 0;
 
     // Copia o cabeçalho original.
     if (!copiar_cabecalho(arq_entrada, arq_saida)) {
         sucesso = false;
     }
 
-    // Percorre a estrutura de resultados.
-    // Esta implementação exporta listas planas, contendo apenas ITEMs.
-    for (int pos = 0; sucesso && (top_k == 0 || total < top_k); pos++) {
+    SAIDA_CTX ctx = { arq_saida, escritor, top_k, 0, false };
 
-        // Não existe elemento na posição consultada.
-        if (lista_get_tipo(resultado, pos) == -1)
-            break;
+    // Percorre a estrutura de resultados, gravando no máximo top_k itens.
+    if (sucesso) {
+        estrutura_percorrer(resultado, escrever_visita, &ctx);
 
-        ITEM *item = lista_get_atomo(resultado, pos);
-
-        // Um NULL nessa posição pode indicar uma sublista.
-        // A exportação de estruturas aninhadas será tratada separadamente.
-        if (item == NULL) {
+        if (ctx.erro)
             sucesso = false;
-            break;
-        }
-
-        //O escritor específico do dataset transforma o ITEM em uma linha do arquivo.
-        if (!escritor(arq_saida, item)) {
-            sucesso = false;
-            break;
-        }
-
-        total++;
     }
 
     if (ferror(arq_saida))
@@ -193,26 +212,38 @@ bool arquivo_escrever(
         sucesso = false;
 
     if (quantidade != NULL)
-        *quantidade = total;
+        *quantidade = ctx.total;
 
     return sucesso;
 }
 
 
-// Insere um ITEM no final de uma lista.
-bool arquivo_inserir_lista(LISTA *estrutura, ITEM *item) {
-
-    return lista_inserir_atomo(estrutura, item, -1);
+bool arquivo_inserir_lista(Estrutura *e, ITEM *item, Query *q) {
+    (void)q; return e && e->estrutura.geral && lista_inserir_atomo(e->estrutura.geral, item, -1);
+}
+bool arquivo_inserir_pilha(Estrutura *e, ITEM *item, Query *q) {
+    (void)q; return e && e->estrutura.geral && pilha_empilhar(e->estrutura.geral, item);
+}
+bool arquivo_inserir_fila(Estrutura *e, ITEM *item, Query *q) {
+    (void)q; return e && e->estrutura.geral && fila_inserir(e->estrutura.geral, item);
+}
+bool arquivo_inserir_seq(Estrutura *e, ITEM *item, Query *q) {
+    (void)q; return e && e->estrutura.seq && lista_seq_inserir(e->estrutura.seq, item, -1);
+}
+bool arquivo_inserir_ordenado(Estrutura *e, ITEM *item, Query *q) {
+    if (!e || !e->estrutura.seq || !q) return false;
+    if (e->papel == PAPEL_RESULTADO)
+        return lista_seq_inserir_ordenado_cmp(e->estrutura.seq, item, query_cmp_resultado, q);
+    return lista_seq_inserir_ordenado_cmp(e->estrutura.seq, item, query_cmp_base, q);
 }
 
-//Insere um ITEM no topo da pilha.
-bool arquivo_inserir_pilha(LISTA *estrutura, ITEM *item) {
-
-    return pilha_empilhar(estrutura, item);
+bool arquivo_inserir_agrupado(Estrutura *e, ITEM *item, Query *q) {
+    const char *campos[Q_MAX];
+    if (!e || !e->estrutura.geral || !q || q->n_grupo < 1) return false;
+    for (int i=0; i<q->n_grupo; i++) campos[i] = q->grupo[q->n_grupo-1-i];
+    return lista_inserir_agrupado(e->estrutura.geral, item, campos, q->n_grupo);
 }
-
-//Insere um ITEM no final da fila.
-bool arquivo_inserir_fila(LISTA *estrutura, ITEM *item) {
-
-    return fila_inserir(estrutura, item);
+bool arquivo_inserir_cruzado(Estrutura *e, ITEM *item, Query *q) {
+    return e && e->estrutura.cruz && q && q->n_cruz == 2 &&
+        lista_cruz_inserir(e->estrutura.cruz, item, q->cruz[0], q->cruz[1]);
 }

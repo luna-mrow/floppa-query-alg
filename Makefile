@@ -1,28 +1,22 @@
-CC := c99
-C_FLAGS := -Wall -Wextra -pedantic
+CC := gcc
+CFLAGS := -std=c99 -Wall -Wextra -pedantic
+OBJDIR := obj
+SOURCES := main.c arquivo.c query.c item.c lista.c lista_seq.c lista_cruz.c estrutura.c
+OBJECTS := $(SOURCES:%.c=$(OBJDIR)/%.o)
+TARGET := trabalho
 
-objects := main.o arquivo.o query.o item.o lista.o lista_seq.o lista_cruz.o
-target := trabalho
+all: $(TARGET)
 
-vpath %.h headers
-vpath %.c src
-vpath %.o obj
+$(TARGET): $(OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(OBJECTS) -lm
 
-run: $(target)
-	./$(target)
+$(OBJDIR)/%.o: src/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -Iheaders -c $< -o $@
 
-all: $(target)
-
-$(target): $(objects)
-	$(CC) -o $(target) $(objects) $(C_FLAGS)
-
-$(objects): %.o: %.c obj
-	$(CC) -c $< -o obj/$@
-
-obj:
-	mkdir obj
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
 
 clean:
-	rm -f $(target) obj/*
+	rm -rf $(OBJDIR) $(TARGET)
 
-.PHONY: run all clean
+.PHONY: all clean

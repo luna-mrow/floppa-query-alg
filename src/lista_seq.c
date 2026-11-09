@@ -11,12 +11,12 @@ struct lista_seq_ {
 };
 
 LISTA_SEQ* lista_seq_criar(int tam_max) {
-  if (tam_max < 1) return NULL;
+  if (tam_max < 1) tam_max = 16;
 
   LISTA_SEQ *lista = (LISTA_SEQ*) malloc(sizeof(LISTA_SEQ));
   if (lista == NULL) return NULL;
   lista->lista = (ITEM**) malloc(sizeof(ITEM*) * tam_max);
-  if (lista->lista == NULL) return NULL;
+  if (lista->lista == NULL) { free(lista); return NULL; }
 
   lista->tamanho = 0;
   lista->tam_max = tam_max;
@@ -34,13 +34,33 @@ void lista_seq_apagar(LISTA_SEQ **lista) {
   *lista = NULL;
 }
 
-bool lista_seq_inserir(LISTA_SEQ* lista, ITEM* item, int pos) {
-  if (
-    lista == NULL || item == NULL ||
-    lista->tamanho >= lista->tam_max ||
-    pos > lista->tamanho || -pos > lista->tamanho + 1
-  ) return false;
+void lista_seq_liberar(LISTA_SEQ **lista) {
+  if (lista == NULL || *lista == NULL) return;
+  free((*lista)->lista);
+  free(*lista);
+  *lista = NULL;
+}
 
+int lista_seq_percorrer(LISTA_SEQ *lista, VISITA_ITEM visita, void *ctx) {
+  if (lista == NULL || visita == NULL) return 0;
+
+  for (int i = 0; i < lista->tamanho; i++) {
+    if (visita(lista->lista[i], ctx)) return 1;
+  }
+
+  return 0;
+}
+
+bool lista_seq_inserir(LISTA_SEQ* lista, ITEM* item, int pos) {
+  if (lista == NULL || item == NULL ||
+      pos > lista->tamanho || (pos < 0 && -(long)pos > lista->tamanho + 1)) return false;
+  if (lista->tamanho >= lista->tam_max) {
+    int novo_max = lista->tam_max * 2;
+    ITEM **novo = realloc(lista->lista, sizeof(ITEM*) * (size_t)novo_max);
+    if (!novo) return false;
+    lista->lista = novo;
+    lista->tam_max = novo_max;
+  }
   if (pos < 0) pos += lista->tamanho + 1;
 
   for (int i = lista->tamanho; i > pos; i--) lista->lista[i] = lista->lista[i - 1];
@@ -51,25 +71,42 @@ bool lista_seq_inserir(LISTA_SEQ* lista, ITEM* item, int pos) {
 }
 
 bool lista_seq_inserir_ordenado(LISTA_SEQ* lista, ITEM* item, const char *campo, int ordem) {
-  if (lista == NULL || item == NULL || lista->tamanho >= lista->tam_max) return false;
-
-  double val, mid_val;
-  if (item_get_num(item, campo, &val) == 0) return false;
-
-  int bot = 0, top = lista->tamanho - 1, mid = -1; //mid = -1 para lista vazia (insere no final)
-  while (bot <= top) {
-    mid = bot + (top - bot)/2;
-    if (item_get_num(lista->lista[mid], campo, &mid_val) == 0) return false;
-
-    if (val == mid_val) break;
-    if (ordem ? val > mid_val : val < mid_val) top = mid - 1;
-    else bot = mid + 1;
+  if (lista == NULL || item == NULL || campo == NULL) return false;
+  double val;
+  if (!item_get_num(item, campo, &val)) return false;
+  int lo = 0, hi = lista->tamanho;
+  while (lo < hi) {
+    int mid = lo + (hi - lo) / 2;
+    double atual;
+    if (!item_get_num(lista->lista[mid], campo, &atual)) return false;
+    if (ordem ? atual > val : atual < val) lo = mid + 1;
+    else hi = mid;
   }
-  
-  //este mid++ garante casos de borda (incluindo final da lista)
-  //mid tem viés para baixo por causa do floor de divisão de inteiros
-  if (ordem ? val < mid_val : val > mid_val) mid++; 
-  return lista_seq_inserir(lista, item, mid);
+  return lista_seq_inserir(lista, item, lo);
+}
+
+bool lista_seq_inserir_ordenado_sim(LISTA_SEQ *lista, ITEM *item, int desc) {
+  if (!lista || !item) return false;
+  int lo=0, hi=lista->tamanho;
+  while (lo<hi) {
+    int mid=lo+(hi-lo)/2;
+    double atual=item_get_sim(lista->lista[mid]), novo=item_get_sim(item);
+    if (desc ? atual > novo : atual < novo) lo=mid+1;
+    else hi=mid;
+  }
+  return lista_seq_inserir(lista,item,lo);
+}
+
+bool lista_seq_inserir_ordenado_cmp(LISTA_SEQ *lista, ITEM *item,
+                                    int (*comparar)(ITEM*, ITEM*, void*), void *ctx) {
+  if (!lista || !item || !comparar) return false;
+  int lo=0, hi=lista->tamanho;
+  while (lo<hi) {
+    int mid=lo+(hi-lo)/2;
+    if (comparar(lista->lista[mid], item, ctx) <= 0) lo=mid+1;
+    else hi=mid;
+  }
+  return lista_seq_inserir(lista,item,lo);
 }
 
 bool lista_seq_remover(LISTA_SEQ* lista, int pos) {

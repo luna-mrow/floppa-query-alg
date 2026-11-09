@@ -31,6 +31,7 @@ static const Dataset DATASETS[] = {
 };
 
 static bool estrutura_criar(Estrutura *e, const Args *a, const Query *q, Papel papel) {
+    e->papel = papel;
     switch (e->tipo) {
         case GERAL:
             e->estrutura.geral = e->criar.geral(a, q, papel);
@@ -58,19 +59,48 @@ static LISTA_SEQ *criar_seq(const Args *a, const Query *q, Papel papel)
     return lista_seq_criar(100);
 }
 
-static const Estrutura ESTRUTURAS[] = {
-    { "pilha", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_pilha },
-    { "fila", GERAL, NULL,.criar.geral =  criar_geral, arquivo_inserir_fila },
-    { "lista_enc", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_lista },
-    { "lista_cabeca", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_lista },
-    { "lista_gen", GERAL, NULL, .criar.geral = criar_geral, arquivo_inserir_agrupado },
+//true se a estrutura interna foi alocada por estrutura_criar
+static bool estrutura_criada(const Estrutura *e)
+{
+    switch (e->tipo) {
+        case GERAL: return e->estrutura.geral != NULL;
+        case SEQ:   return e->estrutura.seq != NULL;
+        case CRUZ:  return e->estrutura.cruz != NULL;
+    }
+    return false;
+}
 
-    // preencher criar e inserir com o que ta faltando
-    // lista_ord: comparador = query_cmp_base (base) ou query_cmp_resultado (resultado), ctx = q
-    // lista_gen: niveis = q->grupo[0..n_grupo-1] | lista_cruz: organizacoes = q->cruz[0..n_cruz-1]
-    { "lista_seq", SEQ, NULL, .criar.seq = criar_seq, arquivo_inserir_seq },
-    { "lista_ord", SEQ, NULL, .criar.seq = criar_seq, arquivo_inserir_ordenado },
-    { "lista_cruz", CRUZ, NULL, .criar.cruz = criar_cruz, arquivo_inserir_cruzado },
+//base: dona dos itens, apaga tudo. resultado: so referencia itens da base, libera apenas os nos
+static void estrutura_liberar(Estrutura *e, Papel papel)
+{
+    switch (e->tipo) {
+        case GERAL:
+            if (papel == PAPEL_RESULTADO) lista_liberar_nos(&e->estrutura.geral);
+            else lista_apagar(&e->estrutura.geral);
+            break;
+        case SEQ:
+            if (papel == PAPEL_RESULTADO) lista_seq_liberar(&e->estrutura.seq);
+            else lista_seq_apagar(&e->estrutura.seq);
+            break;
+        case CRUZ:
+            if (papel == PAPEL_RESULTADO) lista_cruz_liberar(&e->estrutura.cruz);
+            else lista_cruz_apagar(&e->estrutura.cruz);
+            break;
+    }
+}
+
+static LISTA_CRUZ *criar_cruz(const Args *a, const Query *q, Papel papel) {
+    (void)a; (void)q; (void)papel; return lista_cruz_criar();
+}
+static const Estrutura ESTRUTURAS[] = {
+    { .nome="pilha", .tipo=GERAL, .criar.geral=criar_geral, .inserir=arquivo_inserir_pilha },
+    { .nome="fila", .tipo=GERAL, .criar.geral=criar_geral, .inserir=arquivo_inserir_fila },
+    { .nome="lista_enc", .tipo=GERAL, .criar.geral=criar_geral, .inserir=arquivo_inserir_lista },
+    { .nome="lista_cabeca", .tipo=GERAL, .criar.geral=criar_geral, .inserir=arquivo_inserir_lista },
+    { .nome="lista_gen", .tipo=GERAL, .criar.geral=criar_geral, .inserir=arquivo_inserir_agrupado },
+    { .nome="lista_seq", .tipo=SEQ, .criar.seq=criar_seq, .inserir=arquivo_inserir_seq },
+    { .nome="lista_ord", .tipo=SEQ, .criar.seq=criar_seq, .inserir=arquivo_inserir_ordenado },
+    { .nome="lista_cruz", .tipo=CRUZ, .criar.cruz=criar_cruz, .inserir=arquivo_inserir_cruzado }
 };
 
 #define N_ELEM(v) (sizeof (v) / sizeof (v)[0])
@@ -167,7 +197,7 @@ static int visita_busca(ITEM *it, void *p)
 
     item_set_sim(it, sim);
     t0 = agora_ms();
-    if (!c->inserir(c->res, it)) {
+    if (!c->res->inserir(c->res, it, (Query *)c->q)) {
         c->erro = 1;
         return 1;
     }
@@ -183,7 +213,8 @@ int main(int argc, char **argv)
     char err[256] = "";
     const Dataset *ds;
     const Estrutura *eb, *er;
-    LISTA *base = NULL, *res = NULL;
+    Estrutura base, res;
+    bool base_criada = false, res_criada = false;
     size_t input_records = 0, output_records = 0;
     double t0, load_ms = 0, search_ms = 0, write_ms = 0;
     BuscaCtx bc;
@@ -191,7 +222,7 @@ int main(int argc, char **argv)
 
     if (argc < 2 || !strcmp(argv[1], "--help") || !strcmp(argv[1], "-h")) {
         uso(argv[0]);
-        return 1;
+        return 0;
     }
     if (parse_args(argc, argv, &a) != 0) {
         uso(argv[0]);
@@ -212,24 +243,28 @@ int main(int argc, char **argv)
     er = validar_estrutura("--result", a.result, &q);
     if (!eb || !er) goto fim;
 
-    base = eb->criar(&q, PAPEL_BASE);
-    res  = er->criar(&q, PAPEL_RESULTADO);
-    if (!base || !res) {
+    base = *eb;
+    res  = *er;
+    estrutura_criar(&base, &a, &q, PAPEL_BASE);
+    estrutura_criar(&res, &a, &q, PAPEL_RESULTADO);
+    base_criada = estrutura_criada(&base);
+    res_criada = estrutura_criada(&res);
+    if (!base_criada || !res_criada) {
         fprintf(stderr, "falha ao criar estruturas\n");
         goto fim;
     }
 
     t0 = agora_ms();
-    if (!arquivo_carregar(a.input, base, (size_t)a.limit, &input_records, ds->ler, eb->inserir)) {
+    if (!arquivo_carregar(a.input, &base, (size_t)a.limit, &input_records, ds->ler, base.inserir, &q)) {
         fprintf(stderr, "erro ao carregar '%s' (lidos %zu registros)\n", a.input, input_records);
         goto fim;
     }
     load_ms = agora_ms() - t0;
 
     memset(&bc, 0, sizeof bc);
-    bc.q = &q; bc.res = res; bc.inserir = er->inserir;
+    bc.q = &q; bc.res = &res;
     t0 = agora_ms();
-    lista_percorrer(base, visita_busca, &bc);
+    estrutura_percorrer(&base, visita_busca, &bc);
     search_ms = (agora_ms() - t0) - bc.insert_ms;
     if (bc.erro) {
         fprintf(stderr, "falha ao inserir no resultado\n");
@@ -237,7 +272,7 @@ int main(int argc, char **argv)
     }
 
     t0 = agora_ms();
-    if (!arquivo_escrever(a.input, a.output, res, (size_t)a.top_k, &output_records, ds->escrever)) {
+    if (!arquivo_escrever(a.input, a.output, &res, (size_t)a.top_k, &output_records, ds->escrever)) {
         fprintf(stderr, "erro ao escrever '%s'\n", a.output);
         goto fim;
     }
@@ -255,7 +290,7 @@ int main(int argc, char **argv)
 
 fim:
     if (status != 0) printf("STATUS=ERROR\n");
-    if (res)  lista_liberar_nos(&res);
-    if (base) lista_apagar(&base);
+    if (res_criada)  estrutura_liberar(&res, PAPEL_RESULTADO);
+    if (base_criada) estrutura_liberar(&base, PAPEL_BASE);
     return status;
 }

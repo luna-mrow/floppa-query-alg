@@ -6,6 +6,10 @@
 
 typedef struct item_ ITEM;
 
+//funcao chamada pelas estruturas a cada item visitado em um percurso
+//retorna 0 para continuar e qualquer outro valor para interromper o percurso
+typedef int (*VISITA_ITEM)(ITEM *item, void *ctx);
+
 ITEM* item_copiar(ITEM*);
 void item_apagar(ITEM**);
 

@@ -5,6 +5,7 @@
 
 typedef struct estrutura_ Estrutura;
 
+
 // Modificar conforme item.c
 typedef ITEM* (*LEITOR_ITEM)(FILE *arquivo);
 
@@ -28,7 +29,7 @@ typedef struct {
     long top_k, limit;
 } Args;
 
-typedef struct estrutura_ {
+struct estrutura_ {
     const char  *nome;
     TipoEstrutura tipo;
     union {
@@ -43,7 +44,8 @@ typedef struct estrutura_ {
         LISTA_CRUZ *(*cruz)(const Args *a, const Query *q, Papel papel);
     } criar;
     INSERIR_ITEM inserir;
-} Estrutura;
+    Papel papel;
+};
 
 typedef struct {
     const Query *q;
@@ -52,3 +54,7 @@ typedef struct {
     double       insert_ms;
     int          erro;
 } BuscaCtx;
+
+//percorre a estrutura na ordem de acesso do seu tipo, chamando o visitante a cada item
+//retorna 1 se o visitante interrompeu o percurso, 0 se percorreu tudo
+int estrutura_percorrer(const Estrutura *e, VISITA_ITEM visita, void *ctx);
