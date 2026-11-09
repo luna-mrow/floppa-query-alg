@@ -12,6 +12,7 @@ void lista_apagar(LISTA**);
 //pos negativa para propagar da cauda
 bool lista_inserir_atomo(LISTA*, ITEM*, int pos);
 bool lista_inserir_sublista(LISTA*, LISTA*, int pos);
+bool lista_inserir_agrupado(LISTA*, ITEM*, const char *campos[], int n_campos);
 
 bool lista_remover(LISTA*, int pos);
 
@@ -19,6 +20,8 @@ int lista_get_tipo(LISTA*, int pos);
 ITEM* lista_get_atomo(LISTA*, int pos);
 LISTA* lista_get_sublista(LISTA*, int pos);
 
+bool lista_vazia(LISTA*);
+int lista_tamanho(LISTA*);
 //0 e para profundidade maxima (65535)
 //qualquer numero acima de 65535 seria overkill TwT
 void lista_imprimir(LISTA*, unsigned short profundidade);

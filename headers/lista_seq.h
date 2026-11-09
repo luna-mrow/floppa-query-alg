@@ -13,12 +13,17 @@ void lista_seq_apagar(LISTA_SEQ**);
 //lista_seq_inserir(-1) = O(1);
 //lista_seq_remover(-1) = O(1);
 bool lista_seq_inserir(LISTA_SEQ*, ITEM*, int pos);
-//bool lista_seq_inserir_ordenado(LISTA_SEQ*, ITEM*, TEMPLATE*, char* nome_campo, char* ordenamento);
+//ASC = 0, DESC = 1
+bool lista_seq_inserir_ordenado(LISTA_SEQ*, ITEM*, const char *campo, int ordem);
 
 bool lista_seq_remover(LISTA_SEQ*, int pos);
 
 ITEM* lista_seq_get(LISTA_SEQ*, int pos);
 
+//-1 para retornos de erro
+int lista_seq_vazia(LISTA_SEQ*);
+int lista_seq_cheia(LISTA_SEQ*);
+int lista_seq_tamanho(LISTA_SEQ*);
 void lista_seq_imprimir(LISTA_SEQ*);
 
 #endif // !LISTA_SEQ_H
