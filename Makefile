@@ -17,7 +17,7 @@ $(target): $(objects)
 	$(CC) -o $(target) $(objects) $(C_FLAGS)
 
 $(objects): %.o: %.c obj
-	$(CC) -c $< -o obj/$@
+	$(CC) -c $< -o obj/$@ $(C_FLAGS)
 
 obj:
 	mkdir obj

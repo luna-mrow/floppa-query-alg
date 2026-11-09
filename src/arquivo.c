@@ -33,15 +33,15 @@ static bool copiar_cabecalho(FILE *entrada, FILE *saida) {
 // Carrega os registros de um arquivo para a estrutura escolhida.
 bool arquivo_carregar(
     const char *caminho,
-    LISTA *base,
+    Estrutura *base,
     size_t limite,
     size_t *quantidade,
     LEITOR_ITEM leitor,
-    INSERIR_ITEM inserir
+    Query *query
 ) {
 
     if (caminho == NULL || base == NULL ||
-        leitor == NULL || inserir == NULL)
+        leitor == NULL)
         return false;
 
     if (quantidade != NULL)
@@ -91,7 +91,7 @@ bool arquivo_carregar(
         }
 
         // Insere o ITEM na estrutura escolhida.
-        if (!inserir(base, item)) {
+        if (!base->inserir(base, item, query)) {
 
             // Se a inserção falhou, a estrutura não assumiu a responsabilidade pelo ITEM.
             item_apagar(&item);
@@ -117,7 +117,7 @@ bool arquivo_carregar(
 bool arquivo_escrever(
     const char *entrada,
     const char *saida,
-    LISTA *resultado,
+    Estrutura *resultado,
     size_t top_k,
     size_t *quantidade,
     ESCRITOR_ITEM escritor
@@ -199,20 +199,34 @@ bool arquivo_escrever(
 }
 
 
-// Insere um ITEM no final de uma lista.
-bool arquivo_inserir_lista(LISTA *estrutura, ITEM *item) {
-
-    return lista_inserir_atomo(estrutura, item, -1);
+bool arquivo_inserir_lista(Estrutura *estrutura, ITEM *item, Query *query) {
+    (void) query;
+    return lista_inserir_atomo(estrutura->estrutura.geral, item, -1);
 }
 
-//Insere um ITEM no topo da pilha.
-bool arquivo_inserir_pilha(LISTA *estrutura, ITEM *item) {
-
-    return pilha_empilhar(estrutura, item);
+bool arquivo_inserir_pilha(Estrutura *estrutura, ITEM *item, Query *query) {
+    (void) query;
+    return pilha_empilhar(estrutura->estrutura.geral, item);
 }
 
-//Insere um ITEM no final da fila.
-bool arquivo_inserir_fila(LISTA *estrutura, ITEM *item) {
+bool arquivo_inserir_fila(Estrutura *estrutura, ITEM *item, Query *query) {
+    (void) query;
+    return fila_inserir(estrutura->estrutura.geral, item);
+}
 
-    return fila_inserir(estrutura, item);
+bool arquivo_inserir_seq(Estrutura *estrutura, ITEM *item, Query *query) {
+    (void) query;
+    return lista_seq_inserir(estrutura->estrutura.seq, item, -1);
+}
+
+bool arquivo_inserir_ordenado(Estrutura *estrutura, ITEM *item, Query *query) {
+    return lista_seq_inserir_ordenado(estrutura->estrutura.seq, item, query->ordem_campo, query->ordem_desc);
+}
+
+bool arquivo_inserir_agrupado(Estrutura *estrutura, ITEM *item, Query *query) {
+    return lista_inserir_agrupado(estrutura->estrutura.geral, item, query->grupo, query->n_grupo);
+}
+
+bool arquivo_inserir_cruzado(Estrutura *estrutura, ITEM *item, Query *query) {
+    return lista_inserir_cruzado(estrutura->estrutura.cruz, item, query->cruz[0], query->cruz[1]);
 }
