@@ -13,6 +13,7 @@ bool arquivo_carregar(
     size_t limite,
     size_t *quantidade,
     LEITOR_ITEM leitor,
+    INSERIR_ITEM inserir,
     Query *query
 );
 
@@ -25,9 +26,9 @@ bool arquivo_escrever(
     ESCRITOR_ITEM escritor
 );
 
+bool arquivo_inserir_lista(Estrutura *estrutura, ITEM *item, Query *query);
 bool arquivo_inserir_pilha(Estrutura *estrutura, ITEM *item, Query *query);
 bool arquivo_inserir_fila(Estrutura *estrutura, ITEM *item, Query *query);
-bool arquivo_inserir_lista(Estrutura *estrutura, ITEM *item, Query *query);
 bool arquivo_inserir_seq(Estrutura *estrutura, ITEM *item, Query *query);
 bool arquivo_inserir_ordenado(Estrutura *estrutura, ITEM *item, Query *query);
 bool arquivo_inserir_agrupado(Estrutura *estrutura, ITEM *item, Query *query);

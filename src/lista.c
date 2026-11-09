@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "../headers/query.h"
 #include "../headers/lista.h"
@@ -20,7 +21,7 @@ struct no_ {
   DADO dado;
   NO *ante;
   NO *prox;
-  int *chave_agrupamento;
+  char *chave_agrupamento;
 };
 
 struct lista_ {
@@ -32,7 +33,7 @@ LISTA* lista_criar() {
   LISTA *lista = (LISTA*) malloc(sizeof(LISTA));
   NO *cabeca = (NO*) malloc(sizeof(NO));
   NO *cauda = (NO*) malloc(sizeof(NO));
-  if (lista == NULL || cabeca == NULL || cauda == NULL) return NULL;
+  if (lista == NULL || cabeca == NULL || cauda == NULL) { free(lista); free(cabeca); free(cauda); return NULL; }
 
   cabeca->tipo = TIPO_LISTA;
   cabeca->dado.sublista = NULL;
@@ -56,6 +57,7 @@ static void no_apagar(NO* no) {
   if (no->tipo == TIPO_LISTA) lista_apagar(&no->dado.sublista);
   else item_apagar(&no->dado.atomo);
 
+  free(no->chave_agrupamento);
   free(no);
 }
 
@@ -69,6 +71,26 @@ void lista_apagar(LISTA **lista) {
     prox = prox->prox;
 
     no_apagar(del);
+  }
+
+  free(*lista);
+  *lista = NULL;
+}
+
+//libera apenas a estrutura (nos, sentinelas e sublistas), sem apagar os itens
+//usada em listas de resultado, cujos itens pertencem a base e serao apagados por ela
+void lista_liberar_nos(LISTA **lista) {
+  if (lista == NULL || *lista == NULL) return;
+
+  NO *del = NULL, *prox = (*lista)->cabeca;
+
+  while (prox != NULL) {
+    del = prox;
+    prox = prox->prox;
+
+    if (del->tipo == TIPO_LISTA) lista_liberar_nos(&del->dado.sublista);
+    free(del->chave_agrupamento);
+    free(del);
   }
 
   free(*lista);
@@ -91,7 +113,7 @@ static NO* encontrar_pos(LISTA *lista, int pos) {
   return prox;
 }
 
-static bool lista_inserir(LISTA *lista, int tipo, DADO dado, int pos, int* chave_agrupamento) {
+static bool lista_inserir(LISTA *lista, int tipo, DADO dado, int pos, char* chave_agrupamento) {
   if (lista == NULL || (tipo == TIPO_ATOMO ? dado.atomo == NULL : dado.sublista == NULL)) return false;
 
   NO *novo = malloc(sizeof(NO));
@@ -131,23 +153,32 @@ bool lista_inserir_sublista(LISTA *lista, LISTA *sublista, int pos) {
 }
 
 bool lista_inserir_agrupado(LISTA *lista, ITEM* item, const char* campos[], int n_campos) {
-  if (lista == NULL || item == NULL || campos == NULL || n_campos < 0) return false;
-  for (int i = 0; i < n_campos; i++) if (campos[i] == NULL) return false;
-
+  if (!lista || !item || !campos || n_campos < 0) return false;
+  for (int i=0; i<n_campos; i++) if (!campos[i]) return false;
   if (n_campos == 0) return lista_inserir_atomo(lista, item, -1);
 
-  double val;
-  if (item_get_num(item, campos[n_campos - 1], &val) == 0) return false;
-  int val_int = (int) val;
-
-  for (NO* aux = lista->cabeca->prox; aux != lista->cauda; aux = aux->prox) {
-    if (val_int == *aux->chave_agrupamento) return lista_inserir_agrupado(aux->dado.sublista, item, campos, n_campos - 1);
+  const char *texto = item_get_str(item, campos[n_campos - 1]);
+  char numero[64];
+  if (!texto) {
+    double valor;
+    if (!item_get_num(item, campos[n_campos - 1], &valor)) return false;
+    snprintf(numero, sizeof numero, "%.15g", valor);
+    texto = numero;
   }
-
-  DADO dado;
-  dado.sublista = lista_criar();
-  lista_inserir(lista, TIPO_LISTA, dado, -1, &val_int);
-  return lista_inserir_agrupado(dado.sublista, item, campos, n_campos - 1);
+  for (NO *aux=lista->cabeca->prox; aux!=lista->cauda; aux=aux->prox) {
+    if (aux->chave_agrupamento && strcmp(texto, aux->chave_agrupamento)==0)
+      return lista_inserir_agrupado(aux->dado.sublista, item, campos, n_campos-1);
+  }
+  LISTA *sub = lista_criar();
+  if (!sub) return false;
+  char *chave = malloc(strlen(texto)+1);
+  if (!chave) { lista_apagar(&sub); return false; }
+  strcpy(chave, texto);
+  DADO dado; dado.sublista = sub;
+  if (!lista_inserir(lista, TIPO_LISTA, dado, -1, chave)) {
+    free(chave); lista_apagar(&sub); return false;
+  }
+  return lista_inserir_agrupado(sub, item, campos, n_campos-1);
 }
 
 bool lista_remover(LISTA* lista, int pos) {
@@ -192,11 +223,27 @@ LISTA* lista_get_sublista(LISTA* lista, int pos) {
   return no->tipo == TIPO_LISTA ? ((no != lista->cabeca && no != lista->cauda) ? no->dado.sublista : NULL) : NULL;
 }
 
+int lista_percorrer(LISTA *lista, VISITA_ITEM visita, void *ctx) {
+  if (lista == NULL || visita == NULL) return 0;
+
+  //os nos sentinela ficam fora do percurso: nao representam registros
+  for (NO *aux = lista->cabeca->prox; aux != lista->cauda; aux = aux->prox) {
+    if (aux->tipo == TIPO_ATOMO) {
+      if (visita(aux->dado.atomo, ctx)) return 1;
+    } else if (lista_percorrer(aux->dado.sublista, visita, ctx)) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 bool lista_vazia(LISTA* lista) {
   return lista != NULL ? lista->cabeca->prox == lista->cauda : false;
 }
 
 int lista_tamanho(LISTA* lista) {
+  if (!lista) return -1;
   int cont = 0;
   for (NO* aux = lista->cabeca->prox; aux != lista->cauda; aux = aux->prox) cont++;
   return cont;
@@ -250,4 +297,14 @@ bool fila_inserir(LISTA* lista, ITEM* item) {
 //reutilizar parece valido?
 ITEM* fila_remover(LISTA* lista) {
   return pilha_desempilhar(lista);
+}
+
+//o topo da pilha e a primeira posicao (pilha_empilhar insere na posicao 0)
+int pilha_percorrer(LISTA* lista, VISITA_ITEM visita, void *ctx) {
+  return lista_percorrer(lista, visita, ctx);
+}
+
+//a frente da fila e a primeira posicao (fila_inserir entra no fim, fila_remover sai da posicao 0)
+int fila_percorrer(LISTA* lista, VISITA_ITEM visita, void *ctx) {
+  return lista_percorrer(lista, visita, ctx);
 }

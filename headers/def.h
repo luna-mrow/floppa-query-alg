@@ -5,13 +5,15 @@
 
 typedef struct estrutura_ Estrutura;
 
+
 // Modificar conforme item.c
 typedef ITEM* (*LEITOR_ITEM)(FILE *arquivo);
 
 // Modificar conforme item.c
 typedef bool (*ESCRITOR_ITEM)(FILE *arquivo, ITEM *item);
 
-typedef bool (*INSERIR_ITEM)(Estrutura *estrutura, ITEM *item, const Query *query);
+// Modificar conforme item.c
+typedef bool (*INSERIR_ITEM)(Estrutura *estrutura, ITEM *item, Query *query);
 
 typedef struct {
     const char    *nome;
@@ -36,13 +38,23 @@ struct estrutura_ {
         LISTA_CRUZ *cruz;
     } estrutura;
 
+    union {
+        LISTA *(*geral)(const Args *a, const Query *q, Papel papel);
+        LISTA_SEQ *(*seq)(const Args *a, const Query *q, Papel papel);
+        LISTA_CRUZ *(*cruz)(const Args *a, const Query *q, Papel papel);
+    } criar;
     INSERIR_ITEM inserir;
+    Papel papel;
 };
 
 typedef struct {
     const Query *q;
     Estrutura *res;
-    size_t vistos, aceitos;
-    double insert_ms;
-    int erro;
+    size_t       vistos, aceitos;
+    double       insert_ms;
+    int          erro;
 } BuscaCtx;
+
+//percorre a estrutura na ordem de acesso do seu tipo, chamando o visitante a cada item
+//retorna 1 se o visitante interrompeu o percurso, 0 se percorreu tudo
+int estrutura_percorrer(const Estrutura *e, VISITA_ITEM visita, void *ctx);
